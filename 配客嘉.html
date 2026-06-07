@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>綠色會員系統 (Green Pass)</title>
+    
+    <!-- 引入 Tailwind CSS 進行切版與樣式設定 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 FontAwesome 圖示庫 (替代原本的 lucide-react 以便於單一檔案執行) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 引入 React 與 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 引入 Babel 以便在瀏覽器中直接編譯 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 隱藏捲軸但保留滾動功能 (打造 App 般的體驗) */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* iOS 安全邊距支援 */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 sm:bg-gray-200 selection:bg-emerald-200 text-gray-800">
+    
+    <!-- React 應用程式掛載點 -->
+    <div id="root">
+        <div class="h-screen w-full flex items-center justify-center text-emerald-600">
+            <i class="fa-solid fa-leaf fa-spin fa-2x"></i>
+            <span class="ml-3 font-bold">載入綠色生活中...</span>
+        </div>
+    </div>
+
+    <!-- React 程式碼區塊 -->
+    <script type="text/babel">
+        const { useState } = React;
+
+        // --- Icon Helpers (使用 FontAwesome 替代 Lucide) ---
+        const Icon = ({ name, size = 24, className = '' }) => {
+            let sizeClass = 'text-base';
+            if (size >= 32) sizeClass = 'text-4xl';
+            else if (size >= 28) sizeClass = 'text-3xl';
+            else if (size >= 24) sizeClass = 'text-2xl';
+            else if (size >= 20) sizeClass = 'text-xl';
+            else if (size >= 18) sizeClass = 'text-lg';
+            else if (size <= 14) sizeClass = 'text-sm';
+            else if (size <= 12) sizeClass = 'text-xs';
+
+            return <i className={`fa-solid fa-${name} ${sizeClass} ${className}`}></i>;
+        };
+
+        const Home = (props) => <Icon name="house" {...props} />;
+        const MapIcon = (props) => <Icon name="map" {...props} />;
+        const Info = (props) => <Icon name="circle-info" {...props} />;
+        const Gift = (props) => <Icon name="gift" {...props} />;
+        const User = (props) => <Icon name="user" {...props} />;
+        const Leaf = (props) => <Icon name="leaf" {...props} />;
+        const ChevronRight = (props) => <Icon name="chevron-right" {...props} />;
+        const MapPin = (props) => <Icon name="location-dot" {...props} />;
+        const Store = (props) => <Icon name="shop" {...props} />;
+        const Clock = (props) => <Icon name="clock" {...props} />;
+        const CreditCard = (props) => <Icon name="credit-card" {...props} />;
+        const Search = (props) => <Icon name="magnifying-glass" {...props} />;
+        const Filter = (props) => <Icon name="filter" {...props} />;
+        const BookOpen = (props) => <Icon name="book-open" {...props} />;
+        const ArrowRightLeft = (props) => <Icon name="right-left" {...props} />;
+        const Shirt = (props) => <Icon name="shirt" {...props} />;
+        const ShoppingBag = (props) => <Icon name="bag-shopping" {...props} />;
+        const CheckCircle2 = (props) => <Icon name="circle-check" {...props} />;
+
+        // --- Mock Data (模擬資料) ---
+        const MOCK_USER = {
+            name: '一級方程式',
+            memberCode: 'ATCC-20260612',
+            points: 150,
+        };
+
+        const MOCK_ARTICLES = [
+            { id: 1, title: '如何實踐無痕飲食？5個入門小技巧', date: '2026-06-01', readTime: '5 min', image: 'bg-emerald-100' },
+            { id: 2, title: '循環包裝減碳效益報告：我們一起省下了多少塑膠？', date: '2026-05-28', readTime: '8 min', image: 'bg-teal-100' },
+            { id: 3, title: '綠色生活指南：認識環保標章與選購秘訣', date: '2026-05-15', readTime: '4 min', image: 'bg-green-100' },
+            { id: 4, title: '從源頭減量：為什麼我們需要推廣重複使用？', date: '2026-05-10', readTime: '6 min', image: 'bg-lime-100' },
+        ];
+
+        const MOCK_LOCATIONS = [
+            { id: 1, name: '全家 永平店', address: '新北市永和區永平路1號', type: '合作便利商店', status: '可租借 / 可歸還', distance: '120m' },
+            { id: 2, name: '全家 頂溪店', address: '新北市永和區永和路二段2號', type: '合作便利商店', status: '僅限歸還', distance: '350m' },
+            { id: 3, name: '全家 公館店', address: '台北市中正區汀州路三段251號', type: '合作便利商店', status: '可租借 / 可歸還', distance: '800m' },
+        ];
+
+        const MOCK_BRANDS = [
+            {
+                id: 'laundry',
+                category: '洗衣店',
+                icon: Shirt,
+                description: '提供到府收送乾洗服務',
+                partners: ['衣級洗衣坊', '洗e大聯盟', '配客洗衣吧']
+            },
+            {
+                id: 'convenience',
+                category: '便利商店',
+                icon: Store,
+                description: '提供循環杯與循環餐盒租借/歸還',
+                partners: ['全家便利商店', '7-ELEVEN', '萊爾富']
+            },
+            {
+                id: 'independent',
+                category: '獨立品牌與無包裝商店',
+                icon: ShoppingBag,
+                description: '提供各類循環容器與購物袋',
+                partners: ['無包裝商店', '零廢棄生活館', '綠色好物']
+            }
+        ];
+
+        const MOCK_REWARDS = [
+            { id: 1, title: '50元 環保商品折價券', type: 'coupon', points: 10, validUntil: '2026-12-31' },
+            { id: 2, title: '免費升級星衣客大杯飲品 (自備杯)', type: 'coupon', points: 20, validUntil: '2026-08-31' },
+            { id: 3, title: '50元 衣級洗衣坊-洗衣折扣券', type: 'gift', points: 50, stock: 5 },
+            { id: 4, title: '環保洗手乳禮盒', type: 'gift', points: 100, stock: 12 },
+        ];
+
+        const MOCK_HISTORY = {
+            rentals: [
+                { id: 'R1001', date: '2026-06-05 14:30', store: '全家 永平店', item: '配客嘉循環袋', status: '已歸還' },
+                { id: 'R1002', date: '2026-05-20 12:15', store: '全家 頂溪店', item: '配客嘉循環箱', status: '已歸還' },
+                { id: 'R1003', date: '2026-04-14 10:00', store: '衣級洗衣坊', item: '循環衣袋', status: '已歸還' },
+            ],
+            returns: [
+                { id: 'R1001', date: '2026-06-06 09:00', store: '全家 永平店', item: '配客嘉循環袋', earnedPoints: 10 },
+                { id: 'R1002', date: '2026-05-22 18:40', store: '全家 頂溪店', item: '配客嘉循環箱', earnedPoints: 15 },
+                { id: 'R1003', date: '2026-04-14 10:00', store: '衣級洗衣坊', item: '循環衣袋', earnedPoints: 3 },
+            ]
+        };
+
+        // --- Components ---
+        const HomeView = () => (
+            <div className="pb-24 animate-[fadeIn_0.3s_ease-in-out]">
+                <div className="bg-emerald-600 text-white p-6 rounded-b-3xl shadow-md">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h1 className="text-2xl font-bold">早安，{MOCK_USER.name}</h1>
+                            <p className="text-emerald-100 text-sm mt-1">讓回收自然發生在每一次服務中 🌍</p>
+                        </div>
+                        <div className="bg-white/20 p-3 rounded-full flex items-center justify-center w-12 h-12">
+                            <Leaf size={28} className="text-white" />
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white text-emerald-900 p-4 rounded-2xl shadow-lg flex justify-between items-center">
+                        <div>
+                            <p className="text-xs text-gray-500 font-medium mb-1">我的配客點</p>
+                            <p className="text-2xl font-bold text-emerald-600">{MOCK_USER.points} <span className="text-sm text-gray-500 font-normal">點</span></p>
+                        </div>
+                        <button className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-emerald-200 transition">
+                            兌換好禮
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 p-6">
+                    <button className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:shadow-md transition">
+                        <div className="bg-emerald-100 w-12 h-12 flex items-center justify-center rounded-full text-emerald-600">
+                            <MapPin size={24} />
+                        </div>
+                        <span className="font-medium text-gray-700">尋找歸還點</span>
+                    </button>
+                    <button className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:shadow-md transition">
+                        <div className="bg-teal-100 w-12 h-12 flex items-center justify-center rounded-full text-teal-600">
+                            <ArrowRightLeft size={24} />
+                        </div>
+                        <span className="font-medium text-gray-700">掃碼租借</span>
+                    </button>
+                </div>
+
+                <div className="px-6 mt-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <BookOpen size={20} className="text-emerald-500" />
+                            探索綠色生活
+                        </h2>
+                        <span className="text-sm text-gray-400 hover:text-emerald-600 cursor-pointer">查看全部</span>
+                    </div>
+                    
+                    <div className="flex flex-col gap-4">
+                        {MOCK_ARTICLES.map(article => (
+                            <div key={article.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex cursor-pointer hover:shadow-md transition">
+                                <div className={`w-24 ${article.image} flex items-center justify-center`}>
+                                    <Leaf className="text-white/50" size={32} />
+                                </div>
+                                <div className="p-4 flex-1">
+                                    <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2">{article.title}</h3>
+                                    <div className="flex items-center justify-between text-xs text-gray-500">
+                                        <span>{article.date}</span>
+                                        <span className="flex items-center gap-1"><Clock size={12}/> {article.readTime}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const ServiceInfoView = () => {
+            const [subTab, setSubTab] = useState('locations');
+
+            return (
+                <div className="pb-24 animate-[fadeIn_0.3s_ease-in-out] h-full flex flex-col">
+                    <div className="bg-white px-6 pt-8 pb-4 shadow-sm z-10 sticky top-0">
+                        <h1 className="text-2xl font-bold text-gray-800 mb-6">服務資訊</h1>
+                        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+                            <button 
+                                onClick={() => setSubTab('locations')}
+                                className={`flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${subTab === 'locations' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}
+                            >據點查詢</button>
+                            <button 
+                                onClick={() => setSubTab('brands')}
+                                className={`flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${subTab === 'brands' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}
+                            >品牌通路</button>
+                            <button 
+                                onClick={() => setSubTab('tutorial')}
+                                className={`flex-1 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${subTab === 'tutorial' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}
+                            >租借教學</button>
+                        </div>
+                    </div>
+
+                    <div className="p-6 flex-1 overflow-y-auto">
+                        {subTab === 'locations' && (
+                            <>
+                                <div className="flex gap-2 mb-6">
+                                    <div className="relative flex-1">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <Search size={18} />
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="搜尋品牌、店名或地址" 
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </div>
+                                    <button className="bg-gray-50 border border-gray-200 w-11 h-11 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100">
+                                        <Filter size={20} />
+                                    </button>
+                                </div>
+                                
+                                <div className="flex flex-col gap-4">
+                                    {MOCK_LOCATIONS.map(loc => (
+                                        <div key={loc.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-bold text-gray-800">{loc.name}</h3>
+                                                <span className="text-xs font-medium bg-emerald-50 text-emerald-600 px-2 py-1 rounded-md">{loc.distance}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-500 mb-3 flex items-center gap-1">
+                                                <MapPin size={14} /> {loc.address}
+                                            </p>
+                                            <div className="flex items-center gap-2 text-xs">
+                                                <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md">{loc.type}</span>
+                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md font-medium">{loc.status}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {subTab === 'brands' && (
+                            <div className="flex flex-col gap-4">
+                                <div className="mb-2">
+                                    <p className="text-sm text-gray-500">探索與我們合作的綠色夥伴，在不同的生活場景中實踐循環經濟。</p>
+                                </div>
+                                {MOCK_BRANDS.map(brand => {
+                                    const BrandIcon = brand.icon;
+                                    return (
+                                        <div key={brand.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                            <div className="flex items-start gap-4 mb-4">
+                                                <div className="bg-emerald-100 w-12 h-12 flex items-center justify-center rounded-xl text-emerald-600 shrink-0">
+                                                    <BrandIcon size={24} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-gray-800 text-base">{brand.category}</h3>
+                                                    <p className="text-xs text-gray-500 mt-1">{brand.description}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {brand.partners.map(partner => (
+                                                    <span key={partner} className="bg-gray-50 border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 cursor-pointer transition">
+                                                        {partner}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {subTab === 'tutorial' && (
+                            <div className="space-y-6">
+                                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500 shadow-sm">
+                                        <span className="text-2xl font-bold">1</span>
+                                    </div>
+                                    <h3 className="font-bold text-lg text-emerald-900 mb-2">尋找歸還點</h3>
+                                    <p className="text-sm text-emerald-700">在地圖或列表中尋找最近的合作店家或自助歸還機。</p>
+                                </div>
+                                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500 shadow-sm">
+                                        <span className="text-2xl font-bold">2</span>
+                                    </div>
+                                    <h3 className="font-bold text-lg text-emerald-900 mb-2">掃描 QR Code</h3>
+                                    <p className="text-sm text-emerald-700">使用 APP 掃描包裝上的條碼，確認歸還品項。</p>
+                                </div>
+                                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500 shadow-sm">
+                                        <span className="text-2xl font-bold">3</span>
+                                    </div>
+                                    <h3 className="font-bold text-lg text-emerald-900 mb-2">投入歸還箱</h3>
+                                    <p className="text-sm text-emerald-700">將包裝投入指定的歸還箱，即刻獲得配客點數獎勵！</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const MapView = () => (
+            <div className="h-screen w-full relative animate-[fadeIn_0.3s_ease-in-out] pb-20">
+                <div className="absolute top-0 w-full z-20 bg-white/90 backdrop-blur-md px-6 py-4 shadow-sm">
+                    <h1 className="text-xl font-bold text-gray-800">歸還點地圖</h1>
+                    <p className="text-xs text-gray-500 mt-1">尋找您附近的合作據點</p>
+                </div>
+
+                <div className="w-full h-full bg-[#E5E3DF] relative overflow-hidden flex items-center justify-center">
+                    <div className="absolute inset-0 opacity-20 pointer-events-none" 
+                         style={{ backgroundImage: 'radial-gradient(#4b5563 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                    </div>
+                    
+                    <div className="absolute top-[30%] left-[40%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                        <div className="bg-emerald-600 text-white w-10 h-10 flex items-center justify-center rounded-full shadow-lg border-2 border-white animate-bounce cursor-pointer">
+                            <Store size={20} />
+                        </div>
+                        <div className="bg-white text-xs font-bold px-2 py-1 rounded shadow-md mt-1 text-gray-800">全家 永平店</div>
+                    </div>
+
+                    <div className="absolute top-[50%] left-[60%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                        <div className="bg-white text-emerald-600 w-10 h-10 flex items-center justify-center rounded-full shadow-lg border-2 border-emerald-600 cursor-pointer">
+                            <MapPin size={20} />
+                        </div>
+                    </div>
+
+                    <div className="absolute top-[70%] left-[30%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                        <div className="bg-white text-blue-500 w-10 h-10 flex items-center justify-center rounded-full shadow-lg border-2 border-blue-500 cursor-pointer">
+                            <Shirt size={20} />
+                        </div>
+                        <div className="bg-white text-xs font-bold px-2 py-1 rounded shadow-md mt-1 text-gray-800">衣級洗衣坊</div>
+                    </div>
+
+                    <button className="absolute bottom-24 right-6 bg-white w-12 h-12 flex items-center justify-center rounded-full shadow-lg text-gray-700 hover:text-emerald-600 z-20 border border-gray-100">
+                        <i className="fa-solid fa-crosshairs text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        );
+
+        const OffersView = () => (
+            <div className="pb-24 animate-[fadeIn_0.3s_ease-in-out]">
+                <div className="bg-emerald-600 px-6 pt-10 pb-20 text-center rounded-b-[40px] shadow-sm">
+                    <h1 className="text-white font-medium mb-2">目前累積點數</h1>
+                    <div className="flex items-center justify-center gap-2">
+                        <Gift className="text-emerald-200" size={32} />
+                        <span className="text-5xl font-extrabold text-white tracking-tight">{MOCK_USER.points}</span>
+                        <span className="text-emerald-100 mt-4">pt</span>
+                    </div>
+                </div>
+
+                <div className="-mt-12 px-6">
+                    <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 mb-8 flex justify-around">
+                        <div className="text-center">
+                            <div className="text-gray-500 text-xs mb-1">即將到期</div>
+                            <div className="font-bold text-gray-800">0 pt</div>
+                        </div>
+                        <div className="w-px bg-gray-200"></div>
+                        <div className="text-center">
+                            <div className="text-gray-500 text-xs mb-1">已兌換禮品</div>
+                            <div className="font-bold text-gray-800">3 項</div>
+                        </div>
+                    </div>
+
+                    <h2 className="text-lg font-bold text-gray-800 mb-4 px-1">可兌換優惠與禮品</h2>
+                    <div className="grid gap-4">
+                        {MOCK_REWARDS.map(reward => (
+                            <div key={reward.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 flex items-center justify-center rounded-xl shrink-0 ${reward.type === 'coupon' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                        {reward.type === 'coupon' ? <CreditCard size={24} /> : <Gift size={24} />}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-800 text-sm mb-1">{reward.title}</h3>
+                                        <p className="text-xs text-gray-500">
+                                            {reward.type === 'coupon' ? `期限: ${reward.validUntil}` : `剩餘數量: ${reward.stock}`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <span className="text-emerald-600 font-bold text-sm">{reward.points} pt</span>
+                                    <button className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full font-medium hover:bg-emerald-100">
+                                        兌換
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const MemberCenterView = () => {
+            const [historyTab, setHistoryTab] = useState('rentals');
+
+            return (
+                <div className="pb-24 animate-[fadeIn_0.3s_ease-in-out]">
+                    <div className="bg-white px-6 pt-10 pb-6 shadow-sm mb-4">
+                        <h1 className="text-2xl font-bold text-gray-800 mb-6">會員中心</h1>
+                        
+                        <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-2xl font-bold border-2 border-white/20 shrink-0">
+                                    {MOCK_USER.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold">{MOCK_USER.name}</h2>
+                                    <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
+                                        會員代碼: <span className="font-mono text-gray-300 bg-black/20 px-2 py-0.5 rounded">{MOCK_USER.memberCode}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-700 pt-4 flex justify-between items-center">
+                               <span className="text-sm text-gray-300">目前等級: <strong className="text-emerald-400">綠色大使</strong></span>
+                               <button className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition">查看條碼</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-4">使用紀錄</h2>
+                        
+                        <div className="flex gap-4 border-b border-gray-200 mb-4">
+                            <button 
+                                onClick={() => setHistoryTab('rentals')}
+                                className={`pb-3 text-sm font-medium transition-colors relative ${historyTab === 'rentals' ? 'text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                租借紀錄
+                                {historyTab === 'rentals' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600 rounded-t-full"></div>}
+                            </button>
+                            <button 
+                                onClick={() => setHistoryTab('returns')}
+                                className={`pb-3 text-sm font-medium transition-colors relative ${historyTab === 'returns' ? 'text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                歸還紀錄
+                                {historyTab === 'returns' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600 rounded-t-full"></div>}
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {historyTab === 'rentals' ? (
+                                MOCK_HISTORY.rentals.map(record => (
+                                    <div key={`rent-${record.id}`} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-start gap-4">
+                                        <div className="bg-amber-100 w-10 h-10 flex items-center justify-center rounded-full text-amber-600 mt-1 shrink-0">
+                                            <ArrowRightLeft size={16} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <h4 className="font-bold text-gray-800 text-sm">{record.item}</h4>
+                                                <span className="text-xs text-gray-400">{record.date.split(' ')[0]}</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                                                租借門市: <Store size={12} className="ml-1"/> {record.store}
+                                            </p>
+                                            <div className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 mt-2">
+                                                <p className="text-xs text-gray-500 font-mono">訂單: {record.id}</p>
+                                                <span className="text-xs flex items-center gap-1 text-emerald-600 font-medium">
+                                                    <CheckCircle2 size={12}/> {record.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                MOCK_HISTORY.returns.map(record => (
+                                    <div key={`ret-${record.id}`} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-start gap-4 relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                                        <div className="bg-emerald-100 w-10 h-10 flex items-center justify-center rounded-full text-emerald-600 mt-1 shrink-0">
+                                            <Leaf size={16} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <h4 className="font-bold text-gray-800 text-sm">{record.item}</h4>
+                                                <span className="text-xs text-gray-400">{record.date.split(' ')[0]}</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                                                歸還門市: <Store size={12} className="ml-1"/> {record.store}
+                                            </p>
+                                            <div className="flex justify-between items-center bg-emerald-50/50 p-2 rounded border border-emerald-50 mt-2">
+                                                <p className="text-xs text-gray-500 font-mono">對應訂單: {record.id}</p>
+                                                <span className="text-xs font-bold text-emerald-600 bg-white px-2 py-0.5 rounded shadow-sm">+{record.earnedPoints} pt</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Component ---
+        function App() {
+            const [activeTab, setActiveTab] = useState('home');
+
+            const renderView = () => {
+                switch (activeTab) {
+                    case 'home': return <HomeView />;
+                    case 'service': return <ServiceInfoView />;
+                    case 'map': return <MapView />;
+                    case 'offers': return <OffersView />;
+                    case 'member': return <MemberCenterView />;
+                    default: return <HomeView />;
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex justify-center">
+                    <div className="w-full max-w-md bg-gray-50 h-screen sm:h-[90vh] sm:mt-[5vh] sm:rounded-[40px] sm:shadow-2xl sm:overflow-hidden relative flex flex-col sm:border-[8px] sm:border-gray-900">
+                        
+                        <div className="flex-1 overflow-y-auto no-scrollbar">
+                            {renderView()}
+                        </div>
+
+                        <nav className="absolute bottom-0 w-full bg-white border-t border-gray-200 pb-safe z-50">
+                            <div className="flex justify-around items-center h-16 px-2">
+                                <button 
+                                    onClick={() => setActiveTab('home')}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'home' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    <Home size={22} />
+                                    <span className="text-[10px] font-medium">主頁</span>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => setActiveTab('service')}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'service' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    <Info size={22} />
+                                    <span className="text-[10px] font-medium">服務</span>
+                                </button>
+
+                                <button 
+                                    onClick={() => setActiveTab('map')}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'map' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    <MapIcon size={22} />
+                                    <span className="text-[10px] font-medium">地圖</span>
+                                </button>
+
+                                <button 
+                                    onClick={() => setActiveTab('offers')}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'offers' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    <Gift size={22} />
+                                    <span className="text-[10px] font-medium">優惠</span>
+                                </button>
+
+                                <button 
+                                    onClick={() => setActiveTab('member')}
+                                    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeTab === 'member' ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    <User size={22} />
+                                    <span className="text-[10px] font-medium">會員</span>
+                                </button>
+                            </div>
+                        </nav>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Render ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
