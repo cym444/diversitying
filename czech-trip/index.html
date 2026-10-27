@@ -837,12 +837,12 @@ footer{border-top:1px solid var(--line);padding-top:28px;margin-top:10px;letter-
 
 <script>
 /* =============== storage =============== */
-var LS_KEY = "czech-trip-snapshot-v3";
+var LS_KEY = "czech-trip-snapshot-v4";
 var store = {};
 try { store = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { store = {}; }
 function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(store)); } catch (e) {} }
 /* 種子時程：私人版目前的排程（首次開啟時寫入，之後以使用者在本機的安排為準） */
-var SEED_SCHED = {"d0w0": 15, "d0w1": 16, "d0w2": 16, "d0w3": 19, "d0w4": 15, "d0w5": 15, "d1w0": 16, "d1w1": 14, "d1w2": 19, "d1w3": 9, "d1w4": 17, "d1w5": 17, "d1w6": 16, "d1w7": 18, "d1w8": 18, "d2w1": 9, "d2w6": 19, "d2w8": 11, "d3w0": 13, "d3w1": 10, "d3w2": 14, "d3w3": 9, "d3w4": 10, "d3w5": 13, "d4w0": 15, "d4w2": 10, "d4w3": 16, "d5w0": 11, "d5w1": 9, "d6w0": 10, "d7w0": 10, "d7w1": 9, "d7w3": 19, "d8w0": 18, "d8w1": 9, "d8w2": 9, "d8w3": 17, "d8w4": 12, "d8w5": 15, "d8w6": 13, "d9w0": 8};
+var SEED_SCHED = {"d0w0": 15, "d0w1": 16, "d0w2": 16, "d0w3": 19, "d0w4": 15, "d0w5": 15, "d1w0": 16, "d1w1": 14, "d1w2": 19, "d1w3": 9, "d1w4": 17, "d1w5": 17, "d1w6": 16, "d1w7": 18, "d1w8": 18, "d2w1": 9, "d2w6": 19, "d2w8": 11, "d3w0": 13, "d3w1": 10, "d3w2": 14, "d3w3": 9, "d3w4": 10, "d3w5": 13, "d4w0": 15, "d4w2": 10, "d4w3": 16, "d5w0": 11, "d5w1": 9, "d5w2": 20, "d6w0": 10, "d7w0": 10, "d7w1": 9, "d7w3": 19, "d8w0": 18, "d8w1": 9, "d8w2": 9, "d8w3": 17, "d8w4": 12, "d8w5": 15, "d8w6": 13, "d9w0": 8};
 var SEED_DUR = {"d2w8": 5, "d4w2": 5, "d5w1": 2, "d8w1": 3};
 if (!store.sched || typeof store.sched !== "object") { store.sched = {}; Object.keys(SEED_SCHED).forEach(function (k) { store.sched[k] = SEED_SCHED[k]; }); }
 if (!store.dur || typeof store.dur !== "object") { store.dur = {}; Object.keys(SEED_DUR).forEach(function (k) { store.dur[k] = SEED_DUR[k]; }); }
@@ -1109,6 +1109,7 @@ var DAYS = [
   wish:[
         W("參訪","Škoda 工廠參訪（Vrchlabí）",0,""),
         W("景點","搭車中_遊覽車",0,""),
+        W("食物","羅浮咖啡館 Café Louvre",0,"11/10 晚上 20:00・百年大咖啡廳，適合甜點與下午茶・營業時間：09:00–23:30"),
   ] },
 { d:"11/11", w:"三", city:"Mladá Boleslav・Škoda 博物館", img:PRAGUE, cap:"Škoda 博物館參訪",
   conf:[
@@ -1143,7 +1144,6 @@ var DAYS = [
         W("景點","霍萊索維斯市集 Holešovice Market",0,"據說是當地居民的必去市場，感覺可朝聖・營業時間：07:30–14:00，周日可能公休・11/13 城堡結束後去，趕得上關門前"),
         W("景點","萊特納公園 Letná Park",0,"傍晚去會很漂亮，可以買小點心上去看夕陽・巨型節拍器・15:00 先入住 meetme23，隨即上萊特納，16:00 前看日落（11 月約 16:00 天黑）"),
         W("食物","Naše maso 肉舖漢堡",0,"肉舖兼小酒館，推捷克香腸與漢堡・營業時間：11:00–22:00，週日公休"),
-        W("食物","羅浮咖啡館 Café Louvre",0,"彈性項目：11/13 當天視狀況決定，下午茶或晚上都可以，不鎖固定時間"),
   ] },
 { d:"11/14", w:"六", city:"布拉格 → 台北", img:PRAGUE, cap:"帶著滿行李箱回家",
   conf:[
