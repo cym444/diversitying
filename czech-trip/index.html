@@ -838,7 +838,7 @@ footer{border-top:1px solid var(--line);padding-top:28px;margin-top:10px;letter-
 
 <script>
 /* =============== storage =============== */
-var LS_KEY = "czech-trip-snapshot-v6";
+var LS_KEY = "czech-trip-snapshot-v8";
 var store = {};
 try { store = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { store = {}; }
 function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(store)); } catch (e) {} }
@@ -1280,10 +1280,10 @@ function getDayConf(idx){
   DAYS[idx].conf.forEach(function(c,ci){
     var key="conf-"+idx+"-"+ci;
     if(store["del-"+key]) return;
-    out.push({key:key, title:store["edit-conf-title-"+key]||c[0], desc:store["edit-conf-desc-"+key]||c[1], hour:c[2], custom:false});
+    out.push({key:key, title:store["edit-conf-title-"+key]||c[0], desc:store["edit-conf-desc-"+key]||c[1], hour:(("edit-conf-hour-"+key) in store ? store["edit-conf-hour-"+key] : c[2]), custom:false});
   });
   (store["custom-conf-"+idx]||[]).forEach(function(c){
-    out.push({key:c.id, title:store["edit-conf-title-"+c.id]||c.title, desc:store["edit-conf-desc-"+c.id]||c.desc, hour:c.hour, custom:true, raw:c});
+    out.push({key:c.id, title:store["edit-conf-title-"+c.id]||c.title, desc:store["edit-conf-desc-"+c.id]||c.desc, hour:(("edit-conf-hour-"+c.id) in store ? store["edit-conf-hour-"+c.id] : c.hour), custom:true, raw:c});
   });
   return out;
 }
@@ -1304,10 +1304,6 @@ function deletedCount(idx) {
 function moveItem(idx, key, hour) {
   var m = schedMap();
   if (hour === null || hour === undefined) delete m[key]; else m[key] = hour;
-  if (hour !== null && hour !== undefined) {
-    var d0 = durGet(key);
-    if (d0 > 24 - hour) { if (24 - hour > 1) durMap()[key] = 24 - hour; else delete durMap()[key]; }
-  }
   selectedKey = null; dragKey = null;
   save(); renderDay(idx);
 }
@@ -1369,11 +1365,12 @@ function itemCard(idx, it, context) {
     else { p.textContent = it.note; }
     el.appendChild(p); }
   if (mode === "edit") {
-    var del = document.createElement("button");
-    del.type = "button"; del.className = "card-del"; del.textContent = "刪除";
-    del.setAttribute("aria-label", "刪除「" + it.name + "」");
-    del.addEventListener("click", function (e) { e.stopPropagation(); deleteItem(idx, it); });
-    el.appendChild(del);
+    if (context === "pool") {
+      var del = twoStepBtn("刪除整筆", "確定刪除整筆？", function () { deleteItem(idx, it); }); del.className = "card-del"; del.setAttribute("aria-label", "刪除整筆「" + it.name + "」"); el.appendChild(del);
+    } else {
+      var rmT = document.createElement("button"); rmT.type = "button"; rmT.className = "card-del"; rmT.textContent = "從時程表移除"; rmT.setAttribute("aria-label", "把「" + it.name + "」從時程表移除，回到待安排"); rmT.addEventListener("click", function (e) { e.stopPropagation(); moveItem(idx, it.key, null); }); el.appendChild(rmT);
+      var delAll = twoStepBtn("刪除整筆（所有區塊）", "確定刪除整筆？", function () { deleteItem(idx, it); }); delAll.className = "card-del"; delAll.setAttribute("aria-label", "刪除整筆「" + it.name + "」（所有區塊）"); el.appendChild(delAll);
+    }
     if (context === "pool") {
       var tools = document.createElement("div"); tools.className = "card-tools";
       var lab = document.createElement("label"); lab.textContent = "改排到"; tools.appendChild(lab);
@@ -1391,23 +1388,14 @@ function itemCard(idx, it, context) {
     if (context !== "pool" && sh1 !== null) {
       var dtools = document.createElement("div"); dtools.className = "card-tools";
       var dlab = document.createElement("label"); dlab.textContent = "時長"; dtools.appendChild(dlab);
-      var dsel = document.createElement("select"); dsel.setAttribute("aria-label", "「" + it.name + "」的持續時間");
-      var maxD = 24 - sh1;
-      for (var dd = 1; dd <= maxD; dd++) {
-        var dop = document.createElement("option"); dop.value = dd;
-        dop.textContent = dd + " 小時（" + fmtHour(sh1) + "–" + fmtHour(sh1 + dd) + "）";
-        dsel.appendChild(dop);
-      }
-      dsel.value = durGet(it.key);
+      var dsel = document.createElement("input"); dsel.type = "number"; dsel.min = "1"; dsel.step = "1"; dsel.value = durGet(it.key); dsel.style.width = "64px"; dsel.setAttribute("aria-label", "「" + it.name + "」的持續時間（小時，可跨午夜）");
       dsel.addEventListener("click", function (e) { e.stopPropagation(); });
       dsel.addEventListener("focus", function () { el.draggable = false; });
       dsel.addEventListener("blur", function () { if (mode === "edit") el.draggable = true; });
-      dsel.addEventListener("change", function () {
-        var v = parseInt(dsel.value, 10) || 1;
-        if (v > 1) durMap()[it.key] = v; else delete durMap()[it.key];
-        save(); renderDay(currentDay);
-      });
-      dtools.appendChild(dsel); el.appendChild(dtools);
+      var applyDur = function () { var v = parseInt(dsel.value, 10) || 1; if (v < 1) v = 1; if (v > 1) durMap()[it.key] = v; else delete durMap()[it.key]; save(); renderDay(currentDay); };
+      dsel.addEventListener("change", applyDur);
+      var dhint = document.createElement("span"); dhint.textContent = " 小時（可跨午夜，結束時間以 25:00 這類寫法表示）";
+      dtools.appendChild(dsel); dtools.appendChild(dhint); el.appendChild(dtools);
     }
     el.appendChild(copyTools(it, idx));
     el.draggable = true;
@@ -1453,7 +1441,7 @@ function slotEl(idx, hr) {
   var t = document.createElement("div"); t.className = "slot-t";
   t.textContent = (hr < 10 ? "0" : "") + hr + ":00";
   var zone = document.createElement("div"); zone.className = "slot-zone";
-  getDayConf(idx).forEach(function (c) { if (c.hour === hr) zone.appendChild(fixedChip(c)); });
+  getDayConf(idx).forEach(function (c) { if (c.hour === hr) { zone.appendChild(fixedChip(c)); if (mode === "edit") zone.appendChild(confRemoveFromTimelineBtn(idx, c)); } });
   dayItems(idx).forEach(function (it) {
     var sh = schedGet(it.key);
     if (sh === null) return;
@@ -1521,10 +1509,72 @@ function restoreBtn(idx, n) {
   return b;
 }
 var MEAL_HIGHLIGHTS = {
-  "11/6": [{ name: "早餐-Bageterie Boulevard", time: "09:00", note: "" }],
-  "11/12": [{ name: "Pork's Mostecká", time: "19:00", note: "脆皮豬腳、手撕豬肉與排骨・營業時間：每日 12:00–23:30・⭐⭐⭐⭐⭐・來自 Notion" }],
-  "11/13": [{ name: "晚餐：捷克燉牛肉 Svíčková", time: "18:00", note: "" }]
+  "11/5": [{ name: "甜點：煙囪卷 Trdelník Sweet Dreams", time: "15:00", note: "營業時間：每日 09:00–23:00" }, { name: "甜點：煙囪卷 Good Food Coffee & Bakery", time: "15:00", note: "營業時間：每日 10:00–22:00" }],
+  "11/6": [{ name: "早餐：Bageterie Boulevard", time: "09:00", note: "中央車站內的店，很像台版路易莎" }, { name: "點心：Curry24 咖哩香腸 / Curry am Schloss 咖哩香腸", time: "18:00", note: "・營業時間：10:00–23:00，週日休息\n・營業時間：每日 11:00–18:00" }, { name: "點心：Bäckerei Dreißig（Brezels）", time: "16:00", note: "・營業時間：每日 7:00–18:00・可以吃 pretzels" }, { name: "晚餐：待確認", time: "18:00", note: "" }],
+  "11/7": [{ name: "晚餐：OPERA 餐酒館／咖啡廳", time: "", note: "・歌劇院廣場旁，推薦 Eierschecke 蛋糕、咖啡或正餐・營業時間：每日 10:00–24:00" }],
+  "11/8": [{ name: "早餐：飯店附的自助餐", time: "09:00", note: "" }, { name: "午餐：待確認", time: "12:00", note: "" }, { name: "晚餐：待確認", time: "20:00", note: "" }],
+  "11/9": [{ name: "早餐：待確認", time: "08:00", note: "" }, { name: "午餐：理工大學安排", time: "12:00", note: "" }, { name: "晚餐：芝穎自行解決", time: "18:00", note: "" }],
+  "11/10": [{ name: "午餐：總部附近小鎮覓食", time: "12:00", note: "我們第一批11點參觀的，大概12:30放人後可以走去小鎮覓食等2點梯次的人結束" }, { name: "晚餐：待確認", time: "18:00", note: "寄放完行李再去吃晚餐~~" }],
+  "11/11": [{ name: "午餐：待確認", time: "12:00", note: "" }, { name: "晚餐：待確認", time: "18:00", note: "" }],
+  "11/12": [{ name: "晚餐：Pork's Mostecká", time: "19:00", note: "脆皮豬腳、手撕豬肉與排骨・營業時間：每日 12:00–23:30" }],
+  "11/13": [{ name: "午餐：Naše maso 肉舖漢堡", time: "13:00", note: "肉舖兼小酒館，推捷克香腸與漢堡・營業時間：11:00–22:00，週日公休" }, { name: "晚餐：捷克燉牛肉 Svíčková", time: "18:00", note: "" }]
 };
+
+/* ---- GitHub functions build (2026-10-28): day windows, independent meal copies,
+   block-local detach, shop reorder, cross-midnight duration. All state lives in
+   this page's localStorage only; nothing here writes back to the private master. ---- */
+function twoStepBtn(text, confirmText, fn) {
+  var b = document.createElement("button"); b.type = "button"; b.className = "mini-btn danger edit-only"; b.textContent = text;
+  var armed = false, timer = null;
+  b.addEventListener("click", function (e) { e.stopPropagation();
+    if (!armed) { armed = true; b.textContent = confirmText; timer = setTimeout(function () { armed = false; b.textContent = text; }, 4000); }
+    else { if (timer) clearTimeout(timer); fn(); } });
+  return b;
+}
+var SEED_DAYWIN = {"11/5":[8,21],"11/6":[8,22],"11/7":[8,22],"11/8":[8,23],"11/9":[8,23],"11/10":[8,22],"11/11":[8,22],"11/12":[8,24],"11/13":[8,23],"11/14":[6,12]};
+if (!store.daywin || typeof store.daywin !== "object") { store.daywin = {}; Object.keys(SEED_DAYWIN).forEach(function (k) { store.daywin[k] = SEED_DAYWIN[k].slice(); }); }
+function getDayWin(idx) {
+  var w = store.daywin && store.daywin[DAYS[idx].d];
+  if (Array.isArray(w) && w.length === 2) { var a = Math.max(0, Math.min(23, parseInt(w[0], 10) || 0)); var b2 = Math.max(1, Math.min(24, parseInt(w[1], 10) || 24)); if (b2 > a) return [a, b2]; }
+  return [0, 24];
+}
+if (!store.meals || typeof store.meals !== "object") { store.meals = {}; Object.keys(MEAL_HIGHLIGHTS).forEach(function (k) { store.meals[k] = MEAL_HIGHLIGHTS[k].map(function (m) { return { name: m.name, time: m.time || "", note: m.note || "" }; }); }); }
+function getMeals(dayStr) { if (!store.meals || !Array.isArray(store.meals[dayStr])) return []; return store.meals[dayStr]; }
+function detachConfToWish(idx, c) {
+  var arr = store["custom-" + idx] || (store["custom-" + idx] = []);
+  var nid = "dc" + idx + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e5);
+  arr.push({ id: nid, kind: "行程", name: c.title, note: c.desc || "" });
+  if (typeof c.hour === "number") schedMap()[nid] = c.hour;
+  if (c.custom) { store["custom-conf-" + idx] = (store["custom-conf-" + idx] || []).filter(function (x) { return x.id !== c.key; }); }
+  else { store["del-" + c.key] = true; }
+  save(); renderDay(idx);
+}
+function deleteConfEverywhere(idx, c) {
+  if (c.custom) { store["custom-conf-" + idx] = (store["custom-conf-" + idx] || []).filter(function (x) { return x.id !== c.key; }); }
+  else { store["del-" + c.key] = true; }
+  save(); renderDay(idx);
+}
+function confRemoveFromTimelineBtn(idx, c) {
+  var rb = document.createElement("button"); rb.type = "button"; rb.className = "mini-btn edit-only"; rb.textContent = "從時程表移除";
+  rb.setAttribute("aria-label", "把「" + c.title + "」從時程表移除，住宿地點那張還在");
+  rb.addEventListener("click", function (e) { e.stopPropagation(); store["edit-conf-hour-" + c.key] = null; save(); renderDay(idx); });
+  return rb;
+}
+function shopOrderItems(code, els) {
+  var ord = store["shop-order-" + code];
+  if (!Array.isArray(ord) || !ord.length) return els;
+  var byId = {}; els.forEach(function (el) { byId[el.dataset.shop] = el; });
+  var out = []; ord.forEach(function (id) { if (byId[id]) out.push(byId[id]); });
+  els.forEach(function (el) { if (out.indexOf(el) < 0) out.push(el); });
+  return out;
+}
+function moveShopOrder(code, els, pos, dir) {
+  var ids = els.map(function (el) { return el.dataset.shop; });
+  var ni = pos + dir; if (ni < 0 || ni >= ids.length) return;
+  var tmp = ids[pos]; ids[pos] = ids[ni]; ids[ni] = tmp;
+  store["shop-order-" + code] = ids; save(); renderShopBuiltin();
+}
+
 function renderDay(idx) {
   currentDay = idx;
   var day = DAYS[idx];
@@ -1572,11 +1622,8 @@ function renderDay(idx) {
     if(mode==="edit"){
       var tb=editableSpan(c.title,function(v){ store["edit-conf-title-"+c.key]=v; save(); }); tb.style.fontWeight="900"; tb.style.fontSize="16px"; item.appendChild(tb);
       var dp=document.createElement("p"); var ds=editableSpan(c.desc||"點此加說明",function(v){ store["edit-conf-desc-"+c.key]=v; save(); }); dp.appendChild(ds); item.appendChild(dp);
-      var db=delBtn("刪除已確認項目",function(){
-        if(c.custom){ store["custom-conf-"+idx]=(store["custom-conf-"+idx]||[]).filter(function(x){return x.id!==c.key;}); }
-        else { store["del-"+c.key]=true; }
-        save(); renderDay(idx);
-      }); db.style.marginTop="6px"; item.appendChild(db);
+      var rmBtn=document.createElement("button"); rmBtn.type="button"; rmBtn.className="mini-btn edit-only"; rmBtn.textContent="從住宿地點移除"; rmBtn.setAttribute("aria-label","把「"+c.title+"」從住宿地點移除，時程表那張還在"); rmBtn.style.marginTop="6px"; rmBtn.addEventListener("click",function(){ detachConfToWish(idx,c); }); item.appendChild(rmBtn);
+      var delAllBtn=twoStepBtn("刪除整筆（所有區塊）","確定刪除整筆？",function(){ deleteConfEverywhere(idx,c); }); delAllBtn.style.marginLeft="8px"; item.appendChild(delAllBtn);
       var ctools=document.createElement("div"); ctools.className="card-tools";
       var clab=document.createElement("label"); clab.textContent="複製到"; ctools.appendChild(clab);
       var csel=document.createElement("select"); csel.setAttribute("aria-label","把「"+c.title+"」複製到的日期");
@@ -1597,7 +1644,7 @@ function renderDay(idx) {
   });
   if(mode==="edit"){
     var af=document.createElement("div"); af.className="add-form";
-    af.innerHTML='<div class="af-title">新增已確認項目（班機／住宿／參訪等）</div>';
+    af.innerHTML='<div class="af-title">新增住宿地點項目（班機／住宿／參訪等）</div>';
     var row=document.createElement("div"); row.className="af-row";
     var ti=document.createElement("input"); ti.placeholder="名稱（例：住宿：某某飯店）"; ti.maxLength=50; ti.style.flex="2 1 160px";
     var de=document.createElement("input"); de.placeholder="說明（例：布拉格・一晚）"; de.maxLength=80; de.style.flex="2 1 140px";
@@ -1608,17 +1655,49 @@ function renderDay(idx) {
     row.appendChild(ti); row.appendChild(de); row.appendChild(hrSel); row.appendChild(ab); af.appendChild(row); cblk.appendChild(af);
   }
   dayView.appendChild(cblk);
-  /* daily meals — display-only references to private meal highlights; originals stay below */
+  /* daily meals — independent copies (deleting the original card never deletes a copy, and vice versa) */
   var mblk = document.createElement("div"); mblk.className = "blk meals";
   var mh = document.createElement("h4"); mh.textContent = "每日餐食"; mblk.appendChild(mh);
-  var meals = MEAL_HIGHLIGHTS[day.d] || [];
+  var meals = getMeals(day.d);
   if (!meals.length) { var mp = document.createElement("p"); mp.className = "pool-empty"; mp.textContent = "尚未標註"; mblk.appendChild(mp); }
-  meals.forEach(function (m) {
+  meals.forEach(function (m, mi) {
     var item = document.createElement("div"); item.className = "conf-item";
-    var b = document.createElement("b"); b.textContent = m.name; item.appendChild(b);
-    var pp = document.createElement("p"); pp.textContent = m.time ? (m.time + (m.note ? "・" + m.note : "")) : m.note; item.appendChild(pp);
+    if (mode === "edit") {
+      var mb = editableSpan(m.name, function (v) { getMeals(day.d)[mi].name = v; save(); }); mb.style.fontWeight = "900"; mb.style.fontSize = "16px"; item.appendChild(mb);
+      var mp2 = document.createElement("p"); var ms = editableSpan(m.note || "點此加備註", function (v) { getMeals(day.d)[mi].note = v; save(); }); mp2.appendChild(ms); item.appendChild(mp2);
+      var trow = document.createElement("div"); trow.className = "card-tools"; var tlab = document.createElement("label"); tlab.textContent = "時間"; trow.appendChild(tlab);
+      var tsel = document.createElement("select"); tsel.setAttribute("aria-label", "「" + m.name + "」的標註時間");
+      var to0 = document.createElement("option"); to0.value = ""; to0.textContent = "不固定時段"; tsel.appendChild(to0);
+      for (var th = 0; th <= 23; th++) { var too = document.createElement("option"); too.value = th; too.textContent = fmtHour(th); tsel.appendChild(too); }
+      tsel.value = (m.time ? parseInt(m.time, 10) : "");
+      tsel.addEventListener("click", function (e) { e.stopPropagation(); });
+      tsel.addEventListener("change", function () { getMeals(day.d)[mi].time = (tsel.value === "" ? "" : fmtHour(parseInt(tsel.value, 10))); save(); renderDay(idx); });
+      trow.appendChild(tsel); item.appendChild(trow);
+      var mdel = twoStepBtn("刪除標註", "確定刪除標註？", function () { getMeals(day.d).splice(mi, 1); save(); renderDay(idx); });
+      mdel.setAttribute("aria-label", "刪除這筆每日餐食標註，只刪標註副本，不刪原卡片"); item.appendChild(mdel);
+    } else {
+      var b = document.createElement("b"); b.textContent = m.name; item.appendChild(b);
+      var pp = document.createElement("p"); pp.textContent = m.time ? (m.time + (m.note ? "・" + m.note : "")) : m.note; item.appendChild(pp);
+    }
     mblk.appendChild(item);
   });
+  if (mode === "edit") {
+    var foodCandidates = dayItems(idx).filter(function (it) { return it.kind === "食物"; });
+    var already = meals.map(function (m) { return m.name; });
+    var fresh = foodCandidates.filter(function (it) { return already.indexOf(it.name) < 0; });
+    var af2 = document.createElement("div"); af2.className = "add-form";
+    af2.innerHTML = '<div class="af-title">＋標註餐廳（複製顯示、不是搬移，原卡片還在）</div>';
+    if (!fresh.length) { var nof = document.createElement("p"); nof.className = "pool-empty"; nof.textContent = "這天沒有可標註的食物卡片（已標註的就不會重複列出）。"; af2.appendChild(nof); }
+    else {
+      var frow = document.createElement("div"); frow.className = "af-row";
+      var fsel = document.createElement("select"); fsel.style.flex = "2 1 200px";
+      fresh.forEach(function (it) { var fo = document.createElement("option"); fo.value = it.key; fo.textContent = it.name + (schedGet(it.key) !== null ? "（" + fmtHour(schedGet(it.key)) + "）" : "（待安排）"); fsel.appendChild(fo); });
+      var fbtn = document.createElement("button"); fbtn.type = "button"; fbtn.className = "af-add"; fbtn.textContent = "標註";
+      fbtn.addEventListener("click", function () { var src = null; fresh.forEach(function (it) { if (it.key === fsel.value) src = it; }); if (!src) return; var arr = getMeals(day.d); if (!store.meals[day.d]) store.meals[day.d] = arr; arr.push({ name: src.name, time: (schedGet(src.key) !== null ? fmtHour(schedGet(src.key)) : ""), note: src.note || "" }); save(); renderDay(idx); });
+      frow.appendChild(fsel); frow.appendChild(fbtn); af2.appendChild(frow);
+    }
+    mblk.appendChild(af2);
+  }
   dayView.appendChild(mblk);
   var noteTxt=getDayNote(idx);
   if(noteTxt || mode==="edit"){
@@ -1633,19 +1712,45 @@ function renderDay(idx) {
     nblk.appendChild(ni); dayView.appendChild(nblk);
   }
 
-  /* hourly timeline 00:00–24:00 */
+  /* hourly timeline — per-day window (default full day); cards outside the window list below, still editable */
+  var win = getDayWin(idx);
   var blk = document.createElement("div"); blk.className = "blk sched-blk";
-  var head = document.createElement("h4"); head.textContent = "今日時程表（00:00–24:00）";
+  var head = document.createElement("h4"); head.textContent = "今日時程表（" + fmtHour(win[0]) + "–" + (win[1] === 24 ? "24:00" : fmtHour(win[1])) + "）";
   blk.appendChild(head);
+  if (mode === "edit") {
+    var wrow = document.createElement("div"); wrow.className = "card-tools"; var wlab = document.createElement("label"); wlab.textContent = "顯示時段"; wrow.appendChild(wlab);
+    var ws = document.createElement("select"); ws.setAttribute("aria-label", "時程表顯示開始時間");
+    for (var wh = 0; wh <= 23; wh++) { var wo = document.createElement("option"); wo.value = wh; wo.textContent = fmtHour(wh); ws.appendChild(wo); }
+    ws.value = win[0];
+    var we = document.createElement("select"); we.setAttribute("aria-label", "時程表顯示結束時間");
+    for (var wh2 = 1; wh2 <= 24; wh2++) { var wo2 = document.createElement("option"); wo2.value = wh2; wo2.textContent = (wh2 === 24 ? "24:00" : fmtHour(wh2)); we.appendChild(wo2); }
+    we.value = win[1];
+    var applyWin = function () { var a = parseInt(ws.value, 10), b2 = parseInt(we.value, 10); if (b2 <= a) { if (ws === document.activeElement) { b2 = Math.min(24, a + 1); we.value = b2; } else { a = Math.max(0, b2 - 1); ws.value = a; } } if (!store.daywin) store.daywin = {}; store.daywin[day.d] = [a, b2]; save(); renderDay(idx); };
+    ws.addEventListener("click", function (e) { e.stopPropagation(); }); we.addEventListener("click", function (e) { e.stopPropagation(); });
+    ws.addEventListener("change", applyWin); we.addEventListener("change", applyWin);
+    wrow.appendChild(ws); wrow.appendChild(we); blk.appendChild(wrow);
+  }
   var hint = document.createElement("p"); hint.className = "sched-hint";
   hint.textContent = mode === "edit"
-    ? "拖動卡牌，安排好每日日程吧！"
+    ? "拖動卡牌，安排好每日日程吧！顯示時段外的卡片會列在時程表下方，不會消失。"
     : "綠色標籤是已確認的班機／巴士，時間已固定；跨好幾個小時的行程會標示起訖時間，同一個小時有兩個行程時會並排顯示。想調整請切換到編輯模式。";
   blk.appendChild(hint);
   var sched = document.createElement("div"); sched.className = "sched";
-  for (var hr = 0; hr <= 23; hr++) sched.appendChild(slotEl(idx, hr));
+  for (var hr = win[0]; hr < win[1] && hr <= 23; hr++) sched.appendChild(slotEl(idx, hr));
   blk.appendChild(sched);
   dayView.appendChild(blk);
+
+  /* cards outside the display window — still editable, not deleted */
+  var outItems = dayItems(idx).filter(function (it) { var sh = schedGet(it.key); return sh !== null && (sh < win[0] || sh >= win[1]); });
+  var outConfs = getDayConf(idx).filter(function (c) { return typeof c.hour === "number" && (c.hour < win[0] || c.hour >= win[1]); });
+  if (outItems.length || outConfs.length) {
+    var oblk = document.createElement("div"); oblk.className = "blk wish";
+    var oh = document.createElement("h4"); oh.textContent = "不在顯示時段內的卡片"; oblk.appendChild(oh);
+    var ohint = document.createElement("p"); ohint.className = "sched-hint"; ohint.textContent = "這些卡片的時間在上面顯示時段之外，仍可以編輯；把它拖到顯示時段內或改排時間，就會回到時程表。"; oblk.appendChild(ohint);
+    outConfs.forEach(function (c) { var chip = fixedChip(c); oblk.appendChild(chip); if (mode === "edit") oblk.appendChild(confRemoveFromTimelineBtn(idx, c)); });
+    if (outItems.length) { var ogrid = document.createElement("div"); ogrid.className = "wish-grid"; outItems.forEach(function (it) { ogrid.appendChild(itemCard(idx, it)); }); oblk.appendChild(ogrid); }
+    dayView.appendChild(oblk);
+  }
 
   /* unscheduled pool — collapsible, with cross-day move controls in edit mode */
   var items = dayItems(idx);
@@ -1736,7 +1841,7 @@ function renderPoolOverview() {
           DAYS.forEach(function (d, di) { if (di !== dayIdx) { var o = document.createElement("option"); o.value = di; o.textContent = d.d + "（週" + d.w + "）"; target.appendChild(o); } });
           var moveBtn = document.createElement("button"); moveBtn.type = "button"; moveBtn.textContent = "移到這天";
           moveBtn.addEventListener("click", function () { moveItemToDay(dayIdx, it, target.value); });
-          var del = delBtn("刪除「" + it.name + "」", function () { deleteItem(dayIdx, it); });
+          var del = delBtn("刪除整筆「" + it.name + "」", function () { deleteItem(dayIdx, it); });
           tools.appendChild(target); tools.appendChild(moveBtn); tools.appendChild(del); card.appendChild(tools);
           card.appendChild(copyTools(it, dayIdx));
         }
@@ -2230,21 +2335,25 @@ function renderShopBuiltin() {
     var cards = [], rows = [];
     DM.forEach(function (p) {
       if (store["del-shop-" + p.id]) return;
-      if (shopAssign(p.id, "de") === sec.code) (isOther ? rows : cards).push(isOther ? makeDmRow(p) : makeDmCard(p));
+      if (shopAssign(p.id, "de") === sec.code) { var _el = isOther ? makeDmRow(p) : makeDmCard(p); _el.dataset.shop = p.id; (isOther ? rows : cards).push(_el); }
     });
-    if (!store["del-shop-cz-marlenka"] && shopAssign("cz-marlenka", "cz") === sec.code) (isOther ? rows : cards).push(isOther ? makeMarlenkaRow() : makeMarlenkaCard());
-    if (!store["del-shop-cz-marmot"] && shopAssign("cz-marmot", "cz") === sec.code) (isOther ? rows : cards).push(isOther ? makeMarmotRow() : makeMarmotCard());
+    if (!store["del-shop-cz-marlenka"] && shopAssign("cz-marlenka", "cz") === sec.code) { var _el2 = isOther ? makeMarlenkaRow() : makeMarlenkaCard(); _el2.dataset.shop = "cz-marlenka"; (isOther ? rows : cards).push(_el2); }
+    if (!store["del-shop-cz-marmot"] && shopAssign("cz-marmot", "cz") === sec.code) { var _el3 = isOther ? makeMarmotRow() : makeMarmotCard(); _el3.dataset.shop = "cz-marmot"; (isOther ? rows : cards).push(_el3); }
     if (typeof customShopItems !== "undefined" && Array.isArray(customShopItems)) {
-      customShopItems.forEach(function (item) { if (shopCountry(item) === sec.code) (isOther ? rows : cards).push(isOther ? makeCustomShopRow(item) : makeCustomShopCard(item)); });
+      customShopItems.forEach(function (item) { if (shopCountry(item) === sec.code) { var _el4 = isOther ? makeCustomShopRow(item) : makeCustomShopCard(item); _el4.dataset.shop = item.id; (isOther ? rows : cards).push(_el4); } });
     }
     PRE.forEach(function (it, i) {
       var cid = "pre-" + i;
       if (store["del-" + cid]) return;
-      if (shopAssign(cid, "other") === sec.code) (isOther ? rows : cards).push(isOther ? makePreRow(it, i) : makePreCard(it, i));
+      if (shopAssign(cid, "other") === sec.code) { var _el5 = isOther ? makePreRow(it, i) : makePreCard(it, i); _el5.dataset.shop = cid; (isOther ? rows : cards).push(_el5); }
     });
     getCustomPre().forEach(function (item) {
-      if (shopAssign(item.id, "other") === sec.code) (isOther ? rows : cards).push(isOther ? makeCustomPreRow(item) : makeCustomPreCard(item));
+      if (shopAssign(item.id, "other") === sec.code) { var _el6 = isOther ? makeCustomPreRow(item) : makeCustomPreCard(item); _el6.dataset.shop = item.id; (isOther ? rows : cards).push(_el6); }
     });
+    var _shopItems = isOther ? rows : cards;
+    var _shopOrdered = shopOrderItems(sec.code, _shopItems);
+    if (isOther) { rows = _shopOrdered; } else { cards = _shopOrdered; }
+    if (mode === "edit") { _shopOrdered.forEach(function (el2, oi) { var ob = document.createElement("div"); ob.className = "shop-order"; var up = document.createElement("button"); up.type = "button"; up.className = "mini-btn"; up.textContent = "↑上移"; up.setAttribute("aria-label", "上移一格"); up.addEventListener("click", function (e) { e.stopPropagation(); moveShopOrder(sec.code, _shopOrdered, oi, -1); }); var dn = document.createElement("button"); dn.type = "button"; dn.className = "mini-btn"; dn.textContent = "↓下移"; dn.setAttribute("aria-label", "下移一格"); dn.addEventListener("click", function (e) { e.stopPropagation(); moveShopOrder(sec.code, _shopOrdered, oi, 1); }); ob.appendChild(up); ob.appendChild(dn); el2.appendChild(ob); }); }
     var total = cards.length + rows.length;
     var h = document.createElement("h3"); h.className = "shop-h"; h.style.color = sec.color;
     if (mode === "edit") { h.appendChild(editableSpan(store["txt-shopsec-" + sec.code + "-title"] || sec.title, function (v) { store["txt-shopsec-" + sec.code + "-title"] = v; save(); })); }
